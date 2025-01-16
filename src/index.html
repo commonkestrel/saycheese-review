@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SayCheese Review</title>
+</head>
+<body>
+    <button id="fetch">Fetch Data!!</button>
+    <code id="data"></code>
+    <script>
+        const getJSON = (url, callback) => {
+            let xhr = new XMLHttpRequest();
+            xhr.open("GET", url, true);
+            xhr.responseType = "json";
+            xhr.onload = () => {
+                const status = xhr.status;
+                callback(status, xhr.response);
+            }
+            xhr.send();
+        }
+
+        document.getElementById("fetch").addEventListener("click", (ev) => {
+            getJSON("/nextrecord", (status, response) => {
+                const code = document.getElementById("data");
+                code.style.color = status == 200 ? "black" : "red";
+                code.innerText = JSON.stringify(response);
+            })
+        })
+    </script>
+</body>
+</html>
