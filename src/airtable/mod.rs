@@ -1,6 +1,8 @@
+mod api;
+mod types;
+
 use std::{
-    io,
-    str::FromStr,
+    collections::HashMap, io, str::FromStr
 };
 
 use reqwest::StatusCode;
@@ -57,13 +59,26 @@ impl Base {
         return Ok(body);
     }
 
-    pub async fn records<'de, T>(&self) -> Result<Vec<Record<T>>, RequestError>
+    pub async fn read_records<T>(&self) -> Result<Vec<Record<T>>, RequestError>
     where
         T: DeserializeOwned,
     {
         let res = self.query().await?;
         let parsed: Response<T> = serde_json::from_value(res)?;
         Ok(parsed.records)
+    }
+
+    pub async fn update_records<T>(&self, records: &[Record<T>]) -> Result<(), serde_json::Error>
+    where 
+        T: Serialize    
+    {
+        let fields = serde_json::to_value(records)?;
+        let mut record_map = HashMap::new();
+        record_map.insert("fields", fields);
+        
+
+
+        Ok(())
     }
 }
 
@@ -75,7 +90,7 @@ struct Response<T> {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Record<T> {
     id: String,
-    #[serde(rename = "createdTime")]
+    #[serde(skip_serializing, rename = "createdTime")]
     created_time: String,
     fields: T,
 }
