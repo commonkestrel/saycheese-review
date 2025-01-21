@@ -863,5 +863,5 @@ pub enum Timezone {
     #[serde(rename = "Pacific/Wake")]
     PacificWake,
     #[serde(rename = "Pacific/Wallis")]
-    PacificWallis
+    PacificWallis,
 }

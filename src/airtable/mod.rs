@@ -1,9 +1,7 @@
-mod api;
-mod types;
+pub mod api;
+pub mod types;
 
-use std::{
-    collections::HashMap, io, str::FromStr
-};
+use std::{collections::HashMap, io, str::FromStr};
 
 use reqwest::StatusCode;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -69,14 +67,12 @@ impl Base {
     }
 
     pub async fn update_records<T>(&self, records: &[Record<T>]) -> Result<(), serde_json::Error>
-    where 
-        T: Serialize    
+    where
+        T: Serialize,
     {
         let fields = serde_json::to_value(records)?;
         let mut record_map = HashMap::new();
         record_map.insert("fields", fields);
-        
-
 
         Ok(())
     }

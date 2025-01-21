@@ -1,7 +1,11 @@
 use std::fs::File;
 
+use actix_files::{Files, NamedFile};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use airtable::{Attachment, Base, Record};
+use airtable::{
+    api::{ListRecords, Record},
+    Attachment, Base,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -9,16 +13,32 @@ mod airtable;
 
 const AIRTABLE_API_KEY: &str = env!("AIRTABLE_API_KEY");
 const AIRTABLE_BASE_ID: &str = env!("AIRTABLE_BASE_ID");
-const INDEX: &str = include_str!("index.html");
-const EMAIL: &str = include_str!("email.html");
-const ICON: &[u8; 76109] = include_bytes!("say-cheese.png");
+const ICON: &[u8; 76109] = include_bytes!("../static/say-cheese.png");
+const EMAIL: &str = include_str!("../static/email.html");
+const GMAIL_APP_PWD: &str = env!("GMAIL_APP_PWD");
 
 const SUBMISSION_TABLE: &str = "YSWS Project Submission";
 const TABLE_VIEW: &str = "Grid View";
 
+const FIELDS: [&str; 11] = [
+    "project_name",
+    "Code URL",
+    "Screenshot",
+    "Description",
+    "Optional - Override Hours Spent",
+    "Email",
+    "qr_code",
+    "gallery_attribution",
+    "os",
+    "architecture",
+    "status",
+];
+
 // listen i didnt name the records dont blame me
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Submission {
+    #[serde(rename = "project_name")]
+    name: String,
     #[serde(rename = "Code URL")]
     repo_url: String,
     #[serde(rename = "Screenshot")]
@@ -27,38 +47,52 @@ struct Submission {
     description: String,
     #[serde(rename = "Optional - Override Hours Spent")]
     hours: f32,
-    #[serde(rename = "qr_code")]
+    #[serde(rename = "Email")]
+    email: String,
     qr_code: Vec<Attachment>,
-    #[serde(rename = "gallery_attribution")]
     gallery_attribution: String,
-    #[serde(rename = "os")]
     os: String,
-    #[serde(rename = "architecture")]
     architecture: String,
-    #[serde(rename = "project_name")]
-    name: String,
-    #[serde(rename = "Automation - Status")]
+    #[serde(default = "default_status")]
     status: String,
 }
 
+fn default_status() -> String {
+    "new".to_owned()
+}
+
 #[get("/record/{i}")]
-async fn record(base: web::Data<Base>, i: web::Path<usize>) -> impl Responder {
-    let json: Vec<Record<Submission>> = base.read_records().await.expect("should be able to query base");
+async fn record(i: web::Path<usize>) -> impl Responder {
+    let json: Vec<Record<Submission>> =
+        ListRecords::new(AIRTABLE_BASE_ID.to_owned(), SUBMISSION_TABLE.to_owned())
+            .with_view(TABLE_VIEW.to_owned())
+            .with_fields(FIELDS.iter().map(ToString::to_string).collect())
+            .request(AIRTABLE_API_KEY)
+            .await
+            .unwrap();
+
     json.get(i.into_inner()).cloned().map(web::Json)
 }
 
 #[get("/nextrecord")]
-async fn next_record(base: web::Data<Base>) -> impl Responder {
-    let json: Vec<Record<Submission>> = base.read_records().await.expect("should be able to access records");
-    for submission in json {
-        if submission.fields().status == "1-Pending Submission" {
-            continue;
+async fn next_record() -> impl Responder {
+    let records: Vec<Record<Submission>> =
+        ListRecords::new(AIRTABLE_BASE_ID.to_owned(), SUBMISSION_TABLE.to_owned())
+            .with_view(TABLE_VIEW.to_owned())
+            .with_fields(FIELDS.iter().map(ToString::to_string).collect())
+            .with_filter_by_formula("status = \"new\"".to_owned())
+            .request(AIRTABLE_API_KEY)
+            .await
+            .unwrap();
+
+    match records.first() {
+        Some(submission) => return HttpResponse::Ok().json(submission),
+        None => {
+            return HttpResponse::NotFound().json(json!(
+                r#"{"status": 404, "message": "No additional submissions to review."}"#
+            ))
         }
-
-        return HttpResponse::Ok().json(submission);
     }
-
-    return HttpResponse::NotFound().json(json!(r#"{"status": 404, "message": "No additional submissions to review."}"#))
 }
 
 #[get("/test")]
@@ -67,19 +101,54 @@ async fn test(base: web::Data<Base>) -> impl Responder {
     let file = File::create("records.json").unwrap();
     serde_json::to_writer_pretty(file, &data).unwrap();
 
-    HttpResponse::Ok().content_type("text/json").body(r#"{"status": 200, "message": "wrote data to disk"}"#)
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(r#"{"status": 200, "message": "wrote data to disk"}"#)
 }
 
 #[post("/update")]
-async fn update(base: web::Data<Base>, submission: web::Json<Record<Submission>>) -> impl Responder {
-    base.update_records(&[submission.into_inner()]).await.unwrap();
+async fn update(
+    base: web::Data<Base>,
+    submission: web::Json<Record<Submission>>,
+) -> impl Responder {
+    // base.update_records(&[submission.into_inner()]).await.unwrap();
 
-    HttpResponse::Ok().content_type("text/json").body(r#"{"status": 200, "message": "updated records"}"#)
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(r#"{"status": 200, "message": "updated records"}"#)
+}
+
+#[get("/updatetest")]
+async fn update_test() -> impl Responder {
+    let records: Vec<Record<Submission>> =
+        ListRecords::new(AIRTABLE_BASE_ID.to_owned(), SUBMISSION_TABLE.to_owned())
+            .with_view(TABLE_VIEW.to_owned())
+            .request(AIRTABLE_API_KEY)
+            .await
+            .unwrap();
+
+    let mut test_record = records[68].fields().clone();
+    test_record.status = "accepted".to_owned();
+
+    airtable::api::update_record(
+        AIRTABLE_API_KEY,
+        AIRTABLE_BASE_ID,
+        SUBMISSION_TABLE,
+        records[68].id(),
+        test_record,
+        false,
+    )
+    .await
+    .unwrap();
+
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(r#"{"status": 200,"message":"updated record"}"#)
 }
 
 #[get("/")]
 async fn index() -> impl Responder {
-    HttpResponse::Ok().content_type("text/html").body(INDEX)
+    NamedFile::open_async("./static/index.html").await
 }
 
 #[actix_web::main]
@@ -102,6 +171,8 @@ async fn main() -> std::io::Result<()> {
             .service(index)
             .service(test)
             .service(update)
+            .service(update_test)
+            .service(Files::new("/static", "static").prefer_utf8(true))
     })
     .bind(("127.0.0.1", 8080))?
     .run()

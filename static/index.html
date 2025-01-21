@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SayCheese Review</title>
+
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            color: black;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        main {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+
+        .flex-column {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .horizontal-center {
+            width: 100%;
+            align-items: center;
+        }
+
+        .header > h1 {
+            margin-bottom: 0.75rem;
+            text-decoration: underline;
+            font-size: 2.5rem;
+        }
+
+        .header > h2 {
+            margin-top: 0;
+            font-size: 1.5rem;
+        }
+
+        .button {
+            color: white;
+            background-color: black;
+            font-size: 1.1rem;
+            border-radius: 0;
+            padding: 1rem;
+            border: none;
+            font-weight: bold;
+            margin: 0.5rem;
+        }
+
+        .accept {
+            background-color: rgb(89, 226, 89);
+        }
+
+        .reject {
+            background-color: rgb(238, 78, 78);
+        }
+    </style>
+</head>
+<body>
+    <div class="header flex-column horizontal-center">
+        <h1>Say Cheese Review</h1>
+        <h2 id="project-title"></h2>
+    </div>
+    <main>
+        <div class="flex-column">
+            <img id="qr">
+        </div>
+        <div class="flex-column">
+            <button class="button accept">Accept</button>
+            <button class="button reject">Reject</button>
+            <a class="button" id="zip">Download Submission</a>
+        </div>
+    </main>
+    <script src="/static/jszip.min.js" type="text/javascript"></script>
+    <script>
+        const getJSON = (url, callback) => {
+            let xhr = new XMLHttpRequest();
+            xhr.open("GET", url, true);
+            xhr.responseType = "json";
+            xhr.onload = () => {
+                const status = xhr.status;
+                callback(status, xhr.response);
+            }
+            xhr.send();
+        }
+
+        const scanQr = async (fields) => {
+            const formData = new FormData();
+
+            const file = await fetch(fields.qr_code[0].url).then(r => r.blob());
+            formData.append("file", file);
+
+            const data = await fetch("https://api.qrserver.com/v1/read-qr-code/", {
+                method: "POST",
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data[0].symbol[0].error) {
+                        alert("Invalid QR Code");
+                    } else {
+                        document.getElementById("qr").src = URL.createObjectURL(file);
+
+                        const qrData = data[0].symbol[0].data;
+                        return qrData;
+                    }
+                })
+            
+            return {
+                file: file,
+                data: data
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", (ev) => {
+            getJSON("/nextrecord", (status, response) => {
+                console.debug(JSON.stringify(response))
+                document.getElementById("project-title").innerText = response.fields["project_name"] + " by " + response.fields["gallery_attribution"];
+
+                scanQr(response.fields).then((data) => {
+                    zipSubmission(response.fields, data.data, data.file);
+                })
+
+            });
+        });
+
+        const zipSubmission = async (fields, url, qr) => {
+            const extension_re = /(?:\.([^.]+))?$/;
+
+            const proj_json = {
+                name: fields["project_name"],
+                author: fields["gallery_attribution"],
+                qr: {
+                    "image": "qr.png",
+                    "type": "URL",
+                    "url": url
+                },
+                demo: "proj." + extension_re.exec(fields["Screenshot"][0]["filename"]),
+                os: fields.os,
+                arch: fields.architecture,
+                description: fields.description,
+                repo: fields["Code URL"]
+            };
+
+            const proj = JSON.stringify(proj_json);
+
+            const zip = new JSZip();
+            zip.file(`proj.json`, proj);
+
+            const zipData = await zip.generateAsync({
+                type: "blob",
+                streamFiles: true
+            });
+
+            const link = document.getElementById("zip");
+            link.href = window.URL.createObjectURL(zipData);
+            link.download = "project.zip";
+        }
+    </script>
+</body>
+</html>
