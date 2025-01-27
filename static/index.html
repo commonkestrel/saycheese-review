@@ -26,6 +26,11 @@
             flex-direction: column;
         }
 
+        .flex-row {
+            display: flex;
+            flex-direction: row;
+        }
+
         .horizontal-center {
             width: 100%;
             align-items: center;
@@ -43,6 +48,8 @@
         }
 
         .button {
+            box-sizing: border-box;
+            display: block;
             color: white;
             background-color: black;
             font-size: 1.1rem;
@@ -51,6 +58,14 @@
             border: none;
             font-weight: bold;
             margin: 0.5rem;
+            text-align: center;
+            width: 15rem;
+            text-decoration: none;
+        }
+
+        .button p {
+            margin: 0;
+            text-decoration: none;
         }
 
         .accept {
@@ -60,21 +75,67 @@
         .reject {
             background-color: rgb(238, 78, 78);
         }
+
+        p:has(.inverse) {
+            display: inline-rblock;
+            margin: 0.5rem;
+        }
+
+        .inverse {
+            display: block;
+            color: white;
+            background-color: black;
+            padding: 0.75rem;
+            margin-right: 0.75rem;
+        }
+
+        #description {
+            line-height: 1.1;
+        }
+
+        .main-column {
+            width: 45vw;
+        }
+
+        #demo {
+            max-width: 45vw;
+        }
+
+        .body > img {
+            max-width: 15vw;
+            height: fit-content;
+        }
+
+        .vertical-center {
+            align-items: center;
+        }
     </style>
 </head>
 <body>
     <div class="header flex-column horizontal-center">
         <h1>Say Cheese Review</h1>
-        <h2 id="project-title"></h2>
     </div>
     <main>
-        <div class="flex-column">
-            <img id="qr">
+        <div class="main-column flex-column invisible">
+            <img id="demo"/>
+            <h2 id="project-title"></h2>
+            <div class="body flex-row">
+                <img id="qr"/>
+                <div class="flex-column">
+                    <p><span class="inverse">os:</span><span id="os"></span></p>
+                    <p><span class="inverse">architecture:</span><span id="arch"></span></p>
+                    <p><span class="inverse">description:</span><span id="description"></span></p>
+                </div>
+            </div>
         </div>
-        <div class="flex-column">
+        <div class="main-column flex-column horizontal-center vertical-center">
             <button class="button accept">Accept</button>
             <button class="button reject">Reject</button>
-            <a class="button" id="zip">Download Submission</a>
+            <a id="zip">
+                <div class="button">
+                    <p>Download Submission</p>
+                </div>
+            </a>
         </div>
     </main>
     <script src="/static/jszip.min.js" type="text/javascript"></script>
@@ -120,8 +181,17 @@
 
         document.addEventListener("DOMContentLoaded", (ev) => {
             getJSON("/nextrecord", (status, response) => {
+                const fields = response.fields;
+
                 console.debug(JSON.stringify(response))
-                document.getElementById("project-title").innerText = response.fields["project_name"] + " by " + response.fields["gallery_attribution"];
+                document.getElementById("project-title").innerText = fields["project_name"] + " by " + fields["gallery_attribution"];
+
+                document.getElementById("os").innerText = fields.os;
+                document.getElementById("arch").innerText = fields.architecture;
+                document.getElementById("description").innerText = fields.Description;
+
+                const screenshot = fields.Screenshot[0].url;
+                document.getElementById("demo").src = screenshot;
 
                 scanQr(response.fields).then((data) => {
                     zipSubmission(response.fields, data.data, data.file);
@@ -132,6 +202,8 @@
 
         const zipSubmission = async (fields, url, qr) => {
             const extension_re = /(?:\.([^.]+))?$/;
+            const extension = extension_re.exec(fields["Screenshot"][0]["filename"])[1];
+            console.log(extension);
 
             const proj_json = {
                 name: fields["project_name"],
@@ -141,7 +213,7 @@
                     "type": "URL",
                     "url": url
                 },
-                demo: "proj." + extension_re.exec(fields["Screenshot"][0]["filename"]),
+                demo: "proj." + extension,
                 os: fields.os,
                 arch: fields.architecture,
                 description: fields.description,
@@ -149,9 +221,12 @@
             };
 
             const proj = JSON.stringify(proj_json);
+            const screenshot = await fetch(fields.Screenshot[0].url).then(r => r.blob());
 
             const zip = new JSZip();
             zip.file(`proj.json`, proj);
+            zip.file(`qr.png`, qr);
+            zip.file(`proj.` + extension, screenshot);
 
             const zipData = await zip.generateAsync({
                 type: "blob",

@@ -3,7 +3,7 @@ use std::fs::File;
 use actix_files::{Files, NamedFile};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use airtable::{
-    api::{ListRecords, Record},
+    api::{ListRecords, Record, RecordId},
     Attachment, Base,
 };
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,6 @@ const AIRTABLE_API_KEY: &str = env!("AIRTABLE_API_KEY");
 const AIRTABLE_BASE_ID: &str = env!("AIRTABLE_BASE_ID");
 const ICON: &[u8; 76109] = include_bytes!("../static/say-cheese.png");
 const EMAIL: &str = include_str!("../static/email.html");
-const GMAIL_APP_PWD: &str = env!("GMAIL_APP_PWD");
 
 const SUBMISSION_TABLE: &str = "YSWS Project Submission";
 const TABLE_VIEW: &str = "Grid View";
@@ -107,15 +106,27 @@ async fn test(base: web::Data<Base>) -> impl Responder {
 }
 
 #[post("/update")]
-async fn update(
-    base: web::Data<Base>,
-    submission: web::Json<Record<Submission>>,
-) -> impl Responder {
+async fn update(submission: web::Json<Record<Submission>>) -> impl Responder {
     // base.update_records(&[submission.into_inner()]).await.unwrap();
 
     HttpResponse::Ok()
         .content_type("application/json")
         .body(r#"{"status": 200, "message": "updated records"}"#)
+}
+
+#[derive(Deserialize)]
+struct ReviewData {
+    id: RecordId,
+    status: String,
+}
+
+#[post("/review")]
+async fn review(submission: web::Json<ReviewData>) -> impl Responder {
+    
+
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(r#"{"status": 200, "message": "updated submission"}"#)
 }
 
 #[get("/updatetest")]
@@ -151,6 +162,11 @@ async fn index() -> impl Responder {
     NamedFile::open_async("./static/index.html").await
 }
 
+#[get("/favicon.ico")]
+async fn favicon() -> impl Responder {
+    NamedFile::open_async("./static/index.html").await
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
@@ -169,6 +185,7 @@ async fn main() -> std::io::Result<()> {
             .service(record)
             .service(next_record)
             .service(index)
+            .service(favicon)
             .service(test)
             .service(update)
             .service(update_test)

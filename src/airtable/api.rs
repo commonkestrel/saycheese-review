@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use chrono::{DateTime, Utc};
 use reqwest::StatusCode;
@@ -10,6 +10,12 @@ const AIRTABLE_API_BASE: &str = "https://api.airtable.com/v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RecordId(String);
+
+impl Display for RecordId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 pub struct ListRecords {
     /// Airtable base ID
@@ -187,6 +193,20 @@ impl ListRecords {
     }
 }
 
+pub async fn get_record<T>(
+    key: &str,
+    base: &str,
+    table: &str,
+    id: &RecordId,
+) -> Result<Record<T>, ApiError>
+where
+    T: DeserializeOwned
+{
+    let url = format!("{AIRTABLE_API_BASE}/{base}/{table}/{id}");
+
+    todo!();
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct ListResponse<T> {
     records: Vec<Record<T>>,
@@ -204,7 +224,7 @@ pub async fn update_record<T>(
 where
     T: Serialize + DeserializeOwned,
 {
-    let url = format!("{AIRTABLE_API_BASE}/{base}/{table}/{}", id.0);
+    let url = format!("{AIRTABLE_API_BASE}/{base}/{table}/{id}");
     let client = reqwest::Client::new();
 
     let mut map = HashMap::new();
