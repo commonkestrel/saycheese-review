@@ -17,6 +17,12 @@ impl Display for RecordId {
     }
 }
 
+impl From<String> for RecordId {
+    fn from(value: String) -> Self {
+        RecordId(value)
+    }
+}
+
 pub struct ListRecords {
     /// Airtable base ID
     base: String,
@@ -204,7 +210,14 @@ where
 {
     let url = format!("{AIRTABLE_API_BASE}/{base}/{table}/{id}");
 
-    todo!();
+    let res = reqwest::Client::new()
+        .get(url)
+        .header("Authorization", format!("Bearer {}", key))
+        .send()
+        .await?;
+
+    let record = res.json().await?;
+    Ok(record)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -231,6 +244,8 @@ where
     map.insert("typecast", serde_json::Value::Bool(typecast));
     map.insert("fields", serde_json::to_value(data)?);
 
+    println!("{}", serde_json::ser::to_string_pretty(&map).unwrap());
+
     let res = client
         .patch(url)
         .header("Authorization", format!("Bearer {}", key))
@@ -254,7 +269,7 @@ where
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Record<T> {
     id: RecordId,
-    #[serde(rename = "createdTime")]
+    #[serde(rename = "createdTime", skip_serializing)]
     created_time: DateTime<Utc>,
     fields: T,
 }
