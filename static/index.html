@@ -207,6 +207,7 @@
     <script src="/static/jszip.min.js" type="text/javascript"></script>
     <script>
         let status = undefined;
+        let copied = false;
 
         const ACCEPTANCE = "your project has been accepted!";
         const REJECTION = "unfortunately your submission has been rejected.";
@@ -270,6 +271,7 @@
 
         const reset = () => {
             status = undefined;
+            copied = false;
             document.getElementById("accept").classList.remove("selected");
             document.getElementById("reject").classList.remove("selected");
 
@@ -302,6 +304,7 @@
             document.getElementById("copy").addEventListener("click", () => {
                 const email = document.getElementById("email").outerHTML.toString();
                 navigator.clipboard.writeText(email);
+                copied = true;
             });
 
             const icon_url = "/icon-uri";
@@ -380,6 +383,13 @@
             link.addEventListener("click", (ev) => {
                 if (status == undefined) {
                     alert("cannot finalize without a decision!");
+                    ev.preventDefault();
+                    return;
+                }
+
+                if (!copied) {
+                    alert("don't forget to copy your email!");
+                    ev.preventDefault();
                     return;
                 }
 
