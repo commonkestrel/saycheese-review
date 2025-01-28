@@ -21,7 +21,7 @@ const IMAGE_DATA_URI: &str = "data:image/png;base64,";
 const SUBMISSION_TABLE: &str = "YSWS Project Submission";
 const TABLE_VIEW: &str = "Grid View";
 
-const FIELDS: [&str; 11] = [
+const FIELDS: [&str; 12] = [
     "project_name",
     "Code URL",
     "Screenshot",
@@ -33,6 +33,7 @@ const FIELDS: [&str; 11] = [
     "os",
     "architecture",
     "status",
+    "email_message",
 ];
 
 // listen i didnt name the records dont blame me
@@ -54,6 +55,8 @@ struct Submission {
     gallery_attribution: String,
     os: String,
     architecture: String,
+    #[serde(default)]
+    email_message: String,
     #[serde(default = "default_status")]
     status: String,
 }
@@ -130,6 +133,7 @@ async fn icon_uri() -> impl Responder {
 struct ReviewData {
     id: RecordId,
     status: String,
+    message: String,
 }
 
 #[post("/review")]
@@ -139,6 +143,7 @@ async fn review(submission: web::Json<ReviewData>) -> impl Responder {
     let rec: Record<Submission> = airtable::api::get_record(AIRTABLE_API_KEY, AIRTABLE_BASE_ID, SUBMISSION_TABLE, &submission.id).await.unwrap();
     let mut data = rec.into_fields();
     data.status = submission.status.clone();
+    data.email_message = submission.message.clone();
 
     airtable::api::update_record(AIRTABLE_API_KEY, AIRTABLE_BASE_ID, SUBMISSION_TABLE, &submission.id, data, false).await.unwrap();
 

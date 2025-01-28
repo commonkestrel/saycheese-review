@@ -103,7 +103,9 @@
         }
 
         #demo {
+            object-fit: contain;
             max-width: 45vw;
+            max-height: 45vh;
         }
 
         .body > img {
@@ -208,6 +210,8 @@
     <script>
         let status = undefined;
         let copied = false;
+        let link_listener = undefined;
+        let review_listener = undefined;
 
         const ACCEPTANCE = "your project has been accepted!";
         const REJECTION = "unfortunately your submission has been rejected.";
@@ -254,10 +258,18 @@
                     } else {
                         const qrData = data[0].symbol[0].data;
 
-                        document.getElementById("qr").src = URL.createObjectURL(file);
-                        document.getElementById("qr").addEventListener("click", () => {
+                        const qr = document.getElementById("qr");
+                        qr.src = URL.createObjectURL(file);
+                        if (link_listener != undefined) {
+                            console.log("link removed")
+                            qr.removeEventListener("click", link_listener);
+                        }
+                        link_listener = () => {
+                            console.log(qrData);
                             downloadURI(qrData, "somethingsomething-saycheese");
-                        });
+                        }
+                        
+                        qr.addEventListener("click", link_listener);
 
                         return qrData;
                     }
@@ -310,7 +322,7 @@
             const icon_url = "/icon-uri";
             fetch(icon_url).then((res) => {
                 res.text().then((body) => {
-                    document.getElementById("email-icon").src = body;
+                    document.getElementById("email-icon").src = "https://saycheese.hackclub.com/static/say-cheese.png";
                 });
             });
 
@@ -380,7 +392,11 @@
             link.href = window.URL.createObjectURL(zipData);
             link.download = "project.zip";
 
-            link.addEventListener("click", (ev) => {
+            if (review_listener !== undefined) {
+                link.removeEventListener("click", review_listener);
+            }
+
+            review_listener = (ev) => {
                 if (status == undefined) {
                     alert("cannot finalize without a decision!");
                     ev.preventDefault();
@@ -399,7 +415,8 @@
 
                 const data = {
                     id: id,
-                    status: status
+                    status: status,
+                    message: document.getElementById("message").value
                 };
 
                 console.log(JSON.stringify(data))
@@ -417,7 +434,9 @@
                     reset();
                 })
 
-            });
+            };
+
+            link.addEventListener("click", review_listener);
         }
     </script>
 </body>
